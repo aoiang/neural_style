@@ -60,6 +60,7 @@ import time
 import argparse
 
 from keras.applications import vgg19
+from keras.applications import nasnet
 from keras import backend as K
 
 parser = argparse.ArgumentParser(description='Neural style transfer with Keras.')
@@ -108,11 +109,11 @@ def preprocess_image(image_path):
 
 
 def deprocess_image(x):
-    if K.image_data_format() == 'channels_first':
-        x = x.reshape((3, img_nrows, img_ncols))
-        x = x.transpose((1, 2, 0))
-    else:
-        x = x.reshape((img_nrows, img_ncols, 3))
+    # if K.image_data_format() == 'channels_first':
+    #     x = x.reshape((3, img_nrows, img_ncols))
+    #     x = x.transpose((1, 2, 0))
+    # else:
+    x = x.reshape((img_nrows, img_ncols, 3))
     # Remove zero-center by mean pixel
     x[:, :, 0] += 103.939
     x[:, :, 1] += 116.779
@@ -136,15 +137,22 @@ else:
 input_tensor = K.concatenate([base_image,
                               style_reference_image,
                               combination_image], axis=0)
+print(input_tensor)
 
 # build the VGG16 network with our 3 images as input
 # the model will be loaded with pre-trained ImageNet weights
-model = vgg19.VGG19(input_tensor=input_tensor,
-                    weights='imagenet', include_top=False)
+# model = vgg19.VGG19(input_tensor=input_tensor,
+#                     weights='imagenet', include_top=False)
+model = nasnet.NASNetLarge(input_tensor=input_tensor, input_shape=(400, 300, 3),
+                     weights='imagenet', include_top=False)
+# model = vgg19.VGG19(input_tensor=input_tensor, input_shape=(400, 300, 3),
+#                      weights='imagenet', include_top=False)
 print('Model loaded.')
 
 # get the symbolic outputs of each "key" layer (we gave them unique names).
 outputs_dict = dict([(layer.name, layer.output) for layer in model.layers])
+for i in outputs_dict:
+    print(i)
 
 # compute the neural style loss
 # first we need to define 4 util functions
@@ -205,19 +213,24 @@ def total_variation_loss(x):
 
 # combine these loss functions into a single scalar
 loss = K.variable(0.)
-layer_features = outputs_dict['block5_conv2']
+layer_features = outputs_dict['normal_concat_15']
+# layer_features = outputs_dict['block5_conv2']
 base_image_features = layer_features[0, :, :, :]
 combination_features = layer_features[2, :, :, :]
 loss += content_weight * content_loss(base_image_features,
                                       combination_features)
 
-feature_layers = ['block1_conv1', 'block2_conv1',
-                  'block3_conv1', 'block4_conv1',
-                  'block5_conv1']
+# feature_layers = ['block1_conv1', 'block2_conv1',
+#                   'block3_conv1', 'block4_conv1',
+#                   'block5_conv1']
+feature_layers = ['normal_concat_10', 'normal_concat_11',
+                  'normal_concat_12', 'normal_concat_13',
+                  'normal_concat_14']
 for layer_name in feature_layers:
     layer_features = outputs_dict[layer_name]
     style_reference_features = layer_features[1, :, :, :]
     combination_features = layer_features[2, :, :, :]
+    print(style_reference_features, combination_features)
     sl = style_loss(style_reference_features, combination_features)
     loss += (style_weight / len(feature_layers)) * sl
 loss += total_variation_weight * total_variation_loss(combination_image)

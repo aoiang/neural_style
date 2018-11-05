@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from keras_applications import nasnet
 from . import keras_modules_injection
+from keras.applications import nas
 
 
 @keras_modules_injection
